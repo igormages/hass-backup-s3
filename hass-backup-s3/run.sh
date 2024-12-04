@@ -43,6 +43,20 @@ fi
 ## SET DUPLICITY COMMAND  ##
 ############################
 
+EXCLUDE_PATHS=(
+    "/proc"
+    "/dev"
+    "/sys"
+    "/run"
+    "/tmp"
+)
+
+# Convert array to duplicity exclude arguments
+EXCLUDE_ARGS=""
+for path in "${EXCLUDE_PATHS[@]}"; do
+    EXCLUDE_ARGS="${EXCLUDE_ARGS} --exclude ${path}"
+done
+
 echo "Duplicity version: $(duplicity --version)"
 
 if [[ ${RESTORE} == "true" ]]; then
@@ -59,10 +73,10 @@ if [[ ${RESTORE} == "true" ]]; then
 else
     echo "Backuping $(ls -l /backup) to ${BUCKET_NAME}"
 
-    duplicity incr "${NO_ENCRYPTION}" --allow-source-mismatch --s3-endpoint-url "${ENDPOINT_URL}" --s3-region-name "${REGION}" --file-prefix-manifest manifest- ${DUPLICITY_FULL_BACKUP_AFTER} "${SOURCE_DIR}" "${BUCKET_NAME}"
+    duplicity incr "${NO_ENCRYPTION}" --allow-source-mismatch ${EXCLUDE_ARGS} --s3-endpoint-url "${ENDPOINT_URL}" --s3-region-name "${REGION}" --file-prefix-manifest manifest- ${DUPLICITY_FULL_BACKUP_AFTER} "${SOURCE_DIR}" "${BUCKET_NAME}"
 
     if [[ -n ${DAY_BEFORE_REMOVING_OLD_BACKUP} ]]; then
         echo "Removing backup older than ${DAY_BEFORE_REMOVING_OLD_BACKUP} on ${BUCKET_NAME}"
-        duplicity --force "${NO_ENCRYPTION}" --allow-source-mismatch --s3-endpoint-url "${ENDPOINT_URL}" --s3-region-name "${REGION}" --file-prefix-manifest manifest- remove-older-than ${DAY_BEFORE_REMOVING_OLD_BACKUP} "${BUCKET_NAME}"
+        duplicity --force "${NO_ENCRYPTION}" --allow-source-mismatch ${EXCLUDE_ARGS} --s3-endpoint-url "${ENDPOINT_URL}" --s3-region-name "${REGION}" --file-prefix-manifest manifest- remove-older-than ${DAY_BEFORE_REMOVING_OLD_BACKUP} "${BUCKET_NAME}"
     fi
 fi
