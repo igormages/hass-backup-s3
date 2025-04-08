@@ -29,49 +29,62 @@ DAY_BEFORE_REMOVING_OLD_BACKUP="$(bashio::config 'removeOlderThan')"
 ## SET DUPLICITY OPTIONS  ##
 ############################
 
+NO_ENCRYPTION=""
 if [[ -z "${GPG_FINGERPRINT}" ]] || [[ -z "${PASSPHRASE}" ]]; then
     NO_ENCRYPTION='--no-encryption'
 else
-    echo "Encrypting snapshots before upload $(ls -l /backup)"
+    echo "🔐 Encrypting snapshots before upload $(ls -l /backup)"
 fi
 
+DUPLICITY_FULL_BACKUP_AFTER=""
 if [[ -n ${DAY_BEFORE_FULL_BACKUP} ]]; then
-	DUPLICITY_FULL_BACKUP_AFTER="--full-if-older-than ${DAY_BEFORE_FULL_BACKUP}"
+	DUPLICITY_FULL_BACKUP_AFTER="--full-if-older-than=${DAY_BEFORE_FULL_BACKUP}"
 fi
 
-############################
-## SET DUPLICITY COMMAND  ##
-############################
-
-EXCLUDE_PATHS=(
-)
-
-# Convert array to duplicity exclude arguments
+# Exclude paths — left empty but preserved for extensibility
 EXCLUDE_ARGS=""
-for path in "${EXCLUDE_PATHS[@]}"; do
-    EXCLUDE_ARGS="${EXCLUDE_ARGS} --exclude ${path}"
-done
 
-echo "Duplicity version: $(duplicity --version)"
+echo "🌀 Duplicity version: $(duplicity --version)"
+
+############################
+## BACKUP or RESTORE MODE ##
+############################
 
 if [[ ${RESTORE} == "true" ]]; then
-    echo "Restoring backups from ${BUCKET_NAME}"
-    duplicity \
-    "${NO_ENCRYPTION}" \
-    --file-prefix-manifest manifest- \
-    --s3-endpoint-url "${ENDPOINT_URL}" \
-    --s3-region-name "${REGION}" \
-    --force \
-    restore \
-    "${BUCKET_NAME}" \
-    "${SOURCE_DIR}"
+    echo "♻️  Restoring backups from ${BUCKET_NAME} to ${SOURCE_DIR}"
+    duplicity restore \
+      ${NO_ENCRYPTION} \
+      --file-prefix-manifest manifest- \
+      --s3-endpoint-url "${ENDPOINT_URL}" \
+      --s3-region-name "${REGION}" \
+      --force \
+      "${BUCKET_NAME}" \
+      "${SOURCE_DIR}"
 else
-    echo "Backuping $(ls -l /backup) to ${BUCKET_NAME}"
-
-    duplicity incr "${NO_ENCRYPTION}" --allow-source-mismatch ${EXCLUDE_ARGS} --s3-endpoint-url "${ENDPOINT_URL}" --s3-region-name "${REGION}" --file-prefix-manifest manifest- ${DUPLICITY_FULL_BACKUP_AFTER} "${SOURCE_DIR}" "${BUCKET_NAME}"
+    echo "📦 Backing up content of ${SOURCE_DIR} to ${BUCKET_NAME}"
+    duplicity \
+      incr \
+      ${NO_ENCRYPTION} \
+      ${EXCLUDE_ARGS} \
+      --allow-source-mismatch \
+      --s3-endpoint-url "${ENDPOINT_URL}" \
+      --s3-region-name "${REGION}" \
+      --file-prefix-manifest manifest- \
+      ${DUPLICITY_FULL_BACKUP_AFTER} \
+      "${SOURCE_DIR}" \
+      "${BUCKET_NAME}"
 
     if [[ -n ${DAY_BEFORE_REMOVING_OLD_BACKUP} ]]; then
-        echo "Removing backup older than ${DAY_BEFORE_REMOVING_OLD_BACKUP} on ${BUCKET_NAME}"
-        duplicity --force "${NO_ENCRYPTION}" --allow-source-mismatch ${EXCLUDE_ARGS} --s3-endpoint-url "${ENDPOINT_URL}" --s3-region-name "${REGION}" --file-prefix-manifest manifest- remove-older-than ${DAY_BEFORE_REMOVING_OLD_BACKUP} "${BUCKET_NAME}"
+        echo "🧹 Removing backups older than ${DAY_BEFORE_REMOVING_OLD_BACKUP} from ${BUCKET_NAME}"
+        duplicity \
+          remove-older-than ${DAY_BEFORE_REMOVING_OLD_BACKUP} \
+          --force \
+          ${NO_ENCRYPTION} \
+          ${EXCLUDE_ARGS} \
+          --allow-source-mismatch \
+          --s3-endpoint-url "${ENDPOINT_URL}" \
+          --s3-region-name "${REGION}" \
+          --file-prefix-manifest manifest- \
+          "${BUCKET_NAME}"
     fi
 fi
