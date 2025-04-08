@@ -44,11 +44,6 @@ fi
 ############################
 
 EXCLUDE_PATHS=(
-    "/proc"
-    "/dev"
-    "/sys"
-    "/run"
-    "/tmp"
 )
 
 # Convert array to duplicity exclude arguments
